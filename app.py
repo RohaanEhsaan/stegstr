@@ -4,27 +4,37 @@ import numpy as np
 import tempfile
 import os
 from engine import StegEngine, calculate_invisibility_metrics
+from audio_engine import AudioStegEngine
 
 st.set_page_config(page_title="Stegstr - Nostr Steganography", page_icon="🔒", layout="wide")
 
 st.title("🔒 Stegstr: Robust Nostr Steganography")
-st.markdown("FOSS steganography engine resilient to social media recompression (WhatsApp, Telegram, Instagram) and built for Nostr.")
+st.markdown("FOSS multi-modal steganography engine resilient to social media recompression (WhatsApp, Telegram, Instagram) and built for Nostr.")
 
 engine_key = st.sidebar.text_input("Encryption Key / Passphrase", value="contest-winning-key", type="password")
 engine = StegEngine(key=engine_key)
+audio_engine = AudioStegEngine(key=engine_key)
 
-tab1, tab2, tab3 = st.tabs(["Encode & Transmit", "Decode / Extract", "Live Compression Stress-Test"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🖼️ Image Encode", 
+    "🔍 Image Decode", 
+    "🎙️ Audio Steganography", 
+    "⚡ Platform Stress-Test"
+])
 
+# ---------------------------------------------------------
+# Tab 1: Image Encode
+# ---------------------------------------------------------
 with tab1:
-    st.header("1. Encode Hidden Message")
+    st.header("1. Encode Hidden Message (Image)")
     col1, col2 = st.columns(2)
     with col1:
         uploaded_cover = st.file_uploader("Upload Carrier Image (JPG/PNG)", type=["jpg", "jpeg", "png"], key="enc_up")
-        secret_payload = st.text_area("Secret Message / Nostr Note (e.g., NIP-01 Event or private text)", height=120)
+        secret_payload = st.text_area("Secret Message / Nostr Note", height=120, key="img_payload")
     
     with col2:
         if uploaded_cover and secret_payload:
-            if st.button("Encode into Carrier"):
+            if st.button("Encode into Carrier Image"):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_in, \
                      tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_out:
                     tmp_in.write(uploaded_cover.read())
@@ -51,11 +61,14 @@ with tab1:
                     if os.path.exists(tmp_in_path): os.remove(tmp_in_path)
                     if os.path.exists(tmp_out_path): os.remove(tmp_out_path)
 
+# ---------------------------------------------------------
+# Tab 2: Image Decode
+# ---------------------------------------------------------
 with tab2:
-    st.header("2. Decode & Recover Payload")
+    st.header("2. Decode & Recover Payload (Image)")
     uploaded_stego = st.file_uploader("Upload Image to Extract Secret From", type=["jpg", "jpeg", "png"], key="dec_up")
     if uploaded_stego:
-        if st.button("Extract Hidden Message"):
+        if st.button("Extract Hidden Message from Image"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_dec:
                 tmp_dec.write(uploaded_stego.read())
                 tmp_dec_path = tmp_dec.name
@@ -69,8 +82,65 @@ with tab2:
             finally:
                 if os.path.exists(tmp_dec_path): os.remove(tmp_dec_path)
 
+# ---------------------------------------------------------
+# Tab 3: Audio Steganography (WAV)
+# ---------------------------------------------------------
 with tab3:
-    st.header("3. Social Platform Survival Simulator")
+    st.header("3. Audio Steganography (Echo Hiding & Phase Modulation)")
+    st.caption("Embeds and extracts resilient data within uncompressed/compressed audio streams.")
+    
+    audio_mode = st.radio("Select Action", ["Encode into Audio", "Decode from Audio"], horizontal=True)
+    
+    if audio_mode == "Encode into Audio":
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            uploaded_wav = st.file_uploader("Upload Carrier Audio (WAV format)", type=["wav"], key="wav_enc_up")
+            audio_secret = st.text_area("Secret Audio Payload", height=100, key="audio_payload_input")
+        
+        with col_a2:
+            if uploaded_wav and audio_secret:
+                if st.button("Embed Message into Audio"):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav_in, \
+                         tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav_out:
+                        tmp_wav_in.write(uploaded_wav.read())
+                        tmp_wav_in_path = tmp_wav_in.name
+                        tmp_wav_out_path = tmp_wav_out.name
+
+                    try:
+                        audio_engine.embed(tmp_wav_in_path, tmp_wav_out_path, audio_secret.encode())
+                        st.success("Payload successfully embedded in audio track!")
+                        st.audio(tmp_wav_out_path, format="audio/wav")
+                        
+                        with open(tmp_wav_out_path, "rb") as f:
+                            st.download_button("Download Stego WAV", f.read(), file_name="stegstr_audio.wav", mime="audio/wav")
+                    except Exception as e:
+                        st.error(f"Audio encoding error: {e}")
+                    finally:
+                        if os.path.exists(tmp_wav_in_path): os.remove(tmp_wav_in_path)
+                        if os.path.exists(tmp_wav_out_path): os.remove(tmp_wav_out_path)
+                        
+    else:
+        uploaded_stego_wav = st.file_uploader("Upload Stego Audio to Decode (WAV)", type=["wav"], key="wav_dec_up")
+        if uploaded_stego_wav:
+            if st.button("Extract Hidden Message from Audio"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav_dec:
+                    tmp_wav_dec.write(uploaded_stego_wav.read())
+                    tmp_wav_dec_path = tmp_wav_dec.name
+
+                try:
+                    recovered_audio_bytes = audio_engine.extract(tmp_wav_dec_path)
+                    st.success("Audio Extraction Successful!")
+                    st.code(recovered_audio_bytes.decode(errors="replace"), language="text")
+                except Exception as e:
+                    st.error(f"Audio decoding failed: {e}. Check key or audio duration.")
+                finally:
+                    if os.path.exists(tmp_wav_dec_path): os.remove(tmp_wav_dec_path)
+
+# ---------------------------------------------------------
+# Tab 4: Platform Stress-Test
+# ---------------------------------------------------------
+with tab4:
+    st.header("4. Social Platform Survival Simulator")
     st.info("Simulates real-world lossy compression pipelines (aggressive downscaling + low-quality JPEG re-encoding).")
     test_img = st.file_uploader("Upload Image for Multi-Platform Stress Test", type=["jpg", "jpeg", "png"], key="stress_up")
     stress_msg = st.text_input("Stress Test Payload", value="Testing Nostr survivability across WhatsApp/Telegram/Instagram")
