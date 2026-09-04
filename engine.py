@@ -6,7 +6,7 @@ from reedsolo import RSCodec
 MID_COORDS = [(2, 1), (1, 2), (2, 2), (3, 1), (1, 3)]
 
 class StegEngine:
-    def __init__(self, key: str, delta: float = 40.0, target_dim: int = 1080):
+    def __init__(self, key: str = "stegstr-default-key", delta: float = 40.0, target_dim: int = 1080):
         self.key = key
         self.delta = delta
         self.target_dim = target_dim
@@ -99,8 +99,11 @@ class StegEngine:
             raise ValueError("Corrupted carrier or invalid passphrase.")
 
         fec_payload = raw[4:4 + payload_len]
-        decoded_bytes, _, _ = self.rsc.decode(fec_payload)
+        decoded = self.rsc.decode(fec_payload)
+        decoded_bytes = decoded[0] if isinstance(decoded, tuple) else decoded
         return bytes(decoded_bytes)
+
+
 def calculate_invisibility_metrics(original_path: str, stego_path: str) -> dict:
     img1 = cv2.imread(original_path)
     img2 = cv2.imread(stego_path)
@@ -108,10 +111,11 @@ def calculate_invisibility_metrics(original_path: str, stego_path: str) -> dict:
     if img1 is None or img2 is None:
         raise ValueError("Could not load one or both images for metric comparison.")
 
-    # Match dimensions for fair pixel-by-pixel comparison
-    img2 = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
+    # Resize cover to match the stego canvas dimensions to compare steganography, not spatial scaling
+    h, w = img2.shape[:2]
+    img1_aligned = cv2.resize(img1, (w, h), interpolation=cv2.INTER_AREA)
     
-    mse = np.mean((img1.astype(np.float64) - img2.astype(np.float64)) ** 2)
+    mse = np.mean((img1_aligned.astype(np.float64) - img2.astype(np.float64)) ** 2)
     if mse == 0:
         psnr = 100.0
     else:
